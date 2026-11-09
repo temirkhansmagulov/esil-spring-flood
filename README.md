@@ -38,7 +38,7 @@ results/tables, results/figures       outputs
 ## Installation
 
 ```bash
-git clone https://github.com/<user>/esil-spring-flood.git
+git clone https://github.com/temirkhansmagulov/esil-spring-flood.git
 cd esil-spring-flood
 conda env create -f environment.yml && conda activate esil-flood
 # or: python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
