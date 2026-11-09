@@ -1,0 +1,24 @@
+name: esil-flood
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - numpy
+  - pandas
+  - scipy
+  - scikit-learn
+  - xgboost
+  - shap
+  - xarray
+  - netcdf4
+  - dask
+  - rasterio
+  - geopandas
+  - shapely
+  - pyyaml
+  - matplotlib
+  - pytest
+  - pip
+  - pip:
+      - cdsapi
+      - pysheds

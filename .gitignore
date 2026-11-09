@@ -1,0 +1,17 @@
+# data and outputs are large or third-party: keep them out of git
+data/raw/*
+data/processed/*
+data/swat/*
+!data/**/.gitkeep
+results/tables/*
+results/figures/*
+!results/**/.gitkeep
+demo/
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+*.egg-info/
+.ipynb_checkpoints/
+.DS_Store

@@ -1,0 +1,142 @@
+# Configuration for the Upper Esil spring-flood study.
+# Every value marked "VERIFY" must be checked before running on real data.
+
+project:
+  name: upper-esil-spring-floods
+  random_seeds: [0, 1, 2, 3, 4]        # five seeds for ML models (Section 6.4)
+  bootstrap_iterations: 1000           # block bootstrap over hydrological years
+  alpha: 0.05                          # significance level for Wilcoxon tests
+
+basin:
+  name: Esil above Turgen
+  area_km2: 3240                       # published drainage area of Esil-Turgen [21]
+  # VERIFY: exact gauge coordinates from the Kazhydromet station passport.
+  gauge_lon: null
+  gauge_lat: null
+  # Optional: an existing basin polygon (GeoJSON/GPKG/SHP). If given, delineation is skipped.
+  polygon_path: data/raw/basin/upper_esil_basin.gpkg
+  # Projected CRS for area calculations (UTM 43N covers roughly 72-78 E). VERIFY.
+  projected_crs: "EPSG:32643"
+  # Download box for gridded data [North, West, South, East] in degrees.
+  # Deliberately generous; VERIFY that the delineated basin lies inside it.
+  era5_area: [52.0, 70.5, 49.5, 75.0]
+
+period:
+  start: "2001-09-01"
+  end: "2024-08-31"
+  hydro_year_start_month: 9            # hydrological year starts 1 September [21]
+  spring_start: "03-01"                # spring window 1 March - 31 May
+  spring_end: "05-31"
+  baseflow_months: [6, 7, 8]           # June-August mean baseflow (Table 5)
+  split:                               # first hydrological year of each subset (e.g. 2001 = 2001/02)
+    train: [2001, 2012]
+    validation: [2013, 2016]
+    test: [2017, 2023]
+
+discharge:
+  # Expected CSV columns: date, q_m3s, and optionally ice (1 = ice-affected day).
+  path: data/raw/discharge/esil_turgen_daily.csv
+  max_gap_days: 7                      # gaps <= 7 days interpolated, longer gaps removed
+
+era5:
+  raw_dir: data/raw/era5_land
+  variables:
+    - total_precipitation
+    - snowmelt
+    - snow_depth_water_equivalent
+    - 2m_temperature
+    - volumetric_soil_water_layer_1
+    - volumetric_soil_water_layer_2
+    - soil_temperature_level_1
+    - soil_temperature_level_2
+
+static:
+  dem_dir: data/raw/copernicus_dem          # Copernicus DEM GLO-30 GeoTIFF tiles
+  worldcover_dir: data/raw/worldcover       # ESA WorldCover v200 GeoTIFF tiles
+  soilgrids_dir: data/raw/soilgrids         # sand/silt/clay mean 0-30 cm GeoTIFFs (see README)
+  hysogs_path: null                         # optional HYSOGs250m GeoTIFF; used for HSG if given
+  gcn250_path: null                         # optional GCN250 AMC II GeoTIFF for cross-checking CN
+  target_resolution_m: 100                  # common analysis grid
+
+# Curve numbers for AMC II by hydrologic soil group, mapped from ESA WorldCover classes
+# to the closest NRCS TR-55 cover type. These are assumptions; edit to match your sources.
+curve_numbers:
+  10: {name: Tree cover,          A: 30, B: 55, C: 70, D: 77}   # woods, good condition
+  20: {name: Shrubland,           A: 35, B: 56, C: 70, D: 77}   # brush, fair condition
+  30: {name: Grassland (steppe),  A: 49, B: 69, C: 79, D: 84}   # pasture/range, fair
+  40: {name: Cropland,            A: 67, B: 78, C: 85, D: 89}   # row crops, straight row, good
+  50: {name: Built-up / roads,    A: 77, B: 85, C: 90, D: 92}   # urban, ~65% impervious
+  60: {name: Bare / sparse,       A: 77, B: 86, C: 91, D: 94}   # fallow, bare soil
+  70: {name: Snow and ice,        A: 98, B: 98, C: 98, D: 98}
+  80: {name: Permanent water,     A: 98, B: 98, C: 98, D: 98}
+  90: {name: Herbaceous wetland,  A: 78, B: 78, C: 78, D: 78}
+  95: {name: Mangroves,           A: 30, B: 55, C: 70, D: 77}
+  100: {name: Moss and lichen,    A: 49, B: 69, C: 79, D: 84}
+
+# Classes reported in Table 3 (WorldCover codes), in the paper's order.
+table3_classes: [50, 60, 40, 30, 20, 10]
+
+# Saturated hydraulic conductivity by USDA texture class (cm/h), Rawls et al. (1982) [30].
+ks_texture_cm_h:
+  sand: 21.0
+  loamy sand: 6.11
+  sandy loam: 2.59
+  loam: 1.32
+  silt loam: 0.68
+  silt: 0.68
+  sandy clay loam: 0.43
+  clay loam: 0.23
+  silty clay loam: 0.15
+  sandy clay: 0.12
+  silty clay: 0.09
+  clay: 0.06
+
+# Ks thresholds (cm/h) used to assign hydrologic soil groups. Chosen so that the Rawls
+# class values reproduce the usual texture -> HSG mapping (sand/loamy sand/sandy loam = A,
+# loam/silt loam = B, sandy clay loam = C, finer = D). Edit if you use another scheme.
+hsg_ks_thresholds_cm_h: {A: 2.0, B: 0.5, C: 0.3}
+
+# Land-cover multipliers of Ks relative to cropland on the same soil, Robinson et al. [3].
+ks_landcover_multiplier: {40: 1.0, 30: 1.3, 10: 2.2}
+
+# Antecedent moisture: ERA5-Land layer-1 soil moisture percentile within the spring window.
+amc:
+  dry_percentile: 33
+  wet_percentile: 67
+  frozen_soil_is_wet: true             # soil temperature layer 1 < 0 C -> AMC III
+
+scenarios:
+  seed: 42
+  degradation: {from: 30, to: 40, fraction: 0.30}         # 30% of grassland -> cropland
+  recovery:
+    - {from: 40, to: 30, fraction: 0.30}                  # 30% of cropland -> grassland
+    - {from: 40, to: 10, fraction: 0.05}                  # tree belts on 5% of cropland
+
+rq3:
+  features: [tp_mm, smlt_mm, sd_mm, t2m_c, swvl1, stl1_c]
+  lags: [0, 1, 2, 3, 4, 5, 6, 7]       # same day plus 1-7 day lags
+  include_doy: true
+  # Variables shared with the SWAT+ perturbation analysis (Spearman agreement test).
+  common_drivers: [smlt_mm, swvl1, stl1_c]
+  xgboost:
+    n_estimators: 2000
+    learning_rate: 0.03
+    max_depth: 4
+    subsample: 0.8
+    colsample_bytree: 0.8
+    min_child_weight: 3
+    early_stopping_rounds: 100
+
+swat:
+  # SWAT+ daily channel output per scenario (channel_sd_day.txt or a CSV with date,q_m3s).
+  baseline: data/swat/baseline/channel_sd_day.txt
+  degradation: data/swat/degradation/channel_sd_day.txt
+  recovery: data/swat/recovery/channel_sd_day.txt
+  outlet_gis_id: null                  # VERIFY: gis_id of the channel at the Turgen outlet
+  # Optional CSV with columns variable,delta_peak_pct from the SWAT+ perturbation runs.
+  perturbation_csv: data/swat/perturbation_sensitivity.csv
+
+paths:
+  processed: data/processed
+  tables: results/tables
+  figures: results/figures
